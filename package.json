@@ -1,0 +1,55 @@
+{
+  "name": "@uikode/tide",
+  "version": "1.0.0",
+  "description": "WebSocket-first, stale-while-revalidate data framework for SolidJS. Data flows. UI follows.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./skeleton": {
+      "types": "./dist/skeleton/index.d.ts",
+      "import": "./dist/skeleton/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  },
+  "devDependencies": {
+    "solid-js": "^1.9.13",
+    "tsup": "^8.0.0",
+    "tsup-preset-solid": "^2.2.0",
+    "typescript": "^5.5.0"
+  },
+  "keywords": [
+    "solidjs",
+    "swr",
+    "stale-while-revalidate",
+    "websocket",
+    "cache",
+    "realtime",
+    "data-fetching",
+    "skeleton",
+    "dashboard"
+  ],
+  "author": "Andy Vandaric <andy@uikode.com>",
+  "license": "MIT",
+  "homepage": "https://uikode.com/tide",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uikode/tide.git"
+  },
+  "bugs": {
+    "url": "https://github.com/uikode/tide/issues"
+  }
+}
