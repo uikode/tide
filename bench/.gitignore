@@ -1,0 +1,16 @@
+# Never commit credentials or session state
+cookies.txt
+*.cookies
+storageState.json
+driver/storageState.json
+.env
+.env.*
+
+# Scratch / temp capture artifacts
+*.out
+*.result.txt
+capture.log
+
+# Deps & build (also covered by repo root .gitignore)
+node_modules/
+dist/
