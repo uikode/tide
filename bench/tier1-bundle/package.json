@@ -1,0 +1,19 @@
+{
+  "name": "tide-bench-tier1-bundle",
+  "private": true,
+  "type": "module",
+  "description": "Tier 1 bundle-size measurement: gzip + brotli, solid-js external, identical method for all libraries.",
+  "scripts": {
+    "measure": "node measure.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  },
+  "dependencies": {
+    "solid-js": "1.9.13",
+    "@tanstack/solid-query": "5.101.0",
+    "@tanstack/solid-query-persist-client": "5.101.0",
+    "@tanstack/query-sync-storage-persister": "5.101.0",
+    "solid-swr": "5.0.2"
+  }
+}

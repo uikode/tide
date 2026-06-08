@@ -1,0 +1,48 @@
+{
+  "measuredAt": "2026-06-08T15:55:04.431Z",
+  "node": "v22.21.1",
+  "method": "esbuild bundle --minify --format=esm, solid-js external; gzip level 9; brotli quality 11",
+  "esbuild": "0.24.2",
+  "results": [
+    {
+      "id": "tide-core",
+      "label": "@uikode/tide (core)",
+      "version": "1.0.0",
+      "minified": 4351,
+      "gzip": 2041,
+      "brotli": 1817
+    },
+    {
+      "id": "tide-skeleton",
+      "label": "@uikode/tide (core+skeleton)",
+      "version": "1.0.0",
+      "minified": 9849,
+      "gzip": 2873,
+      "brotli": 2564
+    },
+    {
+      "id": "tanstack",
+      "label": "@tanstack/solid-query (bare)",
+      "version": "5.101.0",
+      "minified": 46206,
+      "gzip": 13924,
+      "brotli": 12657
+    },
+    {
+      "id": "tanstack-persist",
+      "label": "@tanstack/solid-query (+persist)",
+      "version": "5.101.0",
+      "minified": 50941,
+      "gzip": 15484,
+      "brotli": 14086
+    },
+    {
+      "id": "solid-swr",
+      "label": "solid-swr (bare)",
+      "version": "5.0.2",
+      "minified": 3191,
+      "gzip": 1333,
+      "brotli": 1223
+    }
+  ]
+}
