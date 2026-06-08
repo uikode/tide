@@ -1,0 +1,57 @@
+/* Identical CSS for all three harnesses (paint/layout held constant, plan §6). */
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --ok: #3fb950;
+  --bad: #f85149;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+.app { display: flex; min-height: 100vh; }
+.nav {
+  width: 180px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 16px 12px;
+  flex: 0 0 auto;
+}
+.nav h1 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 12px; }
+.nav a {
+  display: block; padding: 8px 10px; margin-bottom: 4px; border-radius: 6px;
+  color: var(--text); text-decoration: none;
+}
+.nav a.active { background: rgba(88,166,255,.15); color: var(--accent); }
+.main { flex: 1 1 auto; padding: 20px; }
+.page-title { font-size: 20px; font-weight: 600; margin: 0 0 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px;
+}
+.card .k { color: var(--muted); font-size: 12px; }
+.card .v { font-size: 22px; font-weight: 600; margin-top: 4px; }
+.row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.row .name { flex: 1 1 auto; font-weight: 500; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+.badge.ok { background: rgba(63,185,80,.15); color: var(--ok); }
+.badge.bad { background: rgba(248,81,73,.15); color: var(--bad); }
+.muted { color: var(--muted); }
+.table { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+
+/* skeletons */
+.sk { background: linear-gradient(90deg, #1c2330 25%, #232b3a 37%, #1c2330 63%); background-size: 400% 100%; border-radius: 6px; animation: shimmer 1.2s infinite; }
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+.sk-card { height: 78px; }
+.sk-row { height: 38px; margin-bottom: 6px; }
