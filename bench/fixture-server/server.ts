@@ -89,6 +89,7 @@ const server = Bun.serve({
       rev += 1;
       const route = Object.keys(ROUTES).find((r) => pageId(r) === page) ?? "/api/dashboard";
       const data = JSON.parse(frozen[route].raw.toString("utf8"));
+      data._bench = rev; // deterministic real change so every lib commits an update
       const frame = JSON.stringify({ type: "update", page, rev, data });
       let n = 0;
       for (const ws of sockets) {
@@ -146,6 +147,7 @@ const server = Bun.serve({
         rev += 1;
         const route = Object.keys(ROUTES).find((r) => pageId(r) === page) ?? "/api/dashboard";
         const data = JSON.parse(frozen[route].raw.toString("utf8"));
+        data._bench = rev;
         const frame = JSON.stringify({ type: "update", page, rev, data });
         for (const s of sockets) s.send(frame);
       }

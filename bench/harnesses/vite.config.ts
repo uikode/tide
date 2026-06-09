@@ -8,6 +8,10 @@ import { resolve } from "node:path";
 export default defineConfig({
   plugins: [solid()],
   resolve: {
+    // CRITICAL: a single Solid instance across the app + the aliased @uikode/tide.
+    // Without dedupe, Vite bundles a 2nd copy of solid-js for Tide's chunk, creating
+    // two reactive graphs whose interaction causes an infinite render loop.
+    dedupe: ["solid-js", "solid-js/web", "solid-js/store"],
     alias: {
       // Consume Tide's built dist directly (avoids fragile file: linking).
       // Measures the same shipped artifact as Tier 1.

@@ -1,9 +1,8 @@
-import { For, type Accessor, type ParentProps } from "solid-js";
+import { For, createEffect, type Accessor, type ParentProps } from "solid-js";
 import { HashRouter, Route, A } from "@solidjs/router";
 import { PAGES, type PageDef } from "./config";
 import { VIEWS } from "./pages";
-import { startTimingProbe } from "./probe";
-import { setHarness } from "./mark";
+import { setHarness, markDataPainted } from "./mark";
 import "./styles.css";
 
 // A data layer is the ONLY thing that differs between harnesses.
@@ -14,8 +13,6 @@ export interface DataLayer {
 }
 
 function NavShell(props: ParentProps) {
-  // Shared WS timing probe — identical & symmetric across harnesses.
-  startTimingProbe();
   return (
     <div class="app">
       <nav class="nav">
@@ -38,6 +35,17 @@ function PageRoute(props: { page: PageDef; layer: DataLayer }) {
   const View = VIEWS[props.page.wsPage as keyof typeof VIEWS] as (p: {
     data: Accessor<unknown>;
   }) => unknown;
+
+  // SINGLE data-painted instrumentation point — identical for every page & every
+  // harness. Reads data() (initial render / new-reference updates for tide &
+  // tanstack) AND the server-injected `_bench` revision so fine-grained, in-place
+  // reconciled updates (solid-swr) also re-fire. Marks in the next animation frame.
+  createEffect(() => {
+    const d = data();
+    void (d as any)?._bench; // track the revision so swr's reconcile updates re-fire
+    if (d) markDataPainted();
+  });
+
   return (
     <>
       <h2 class="page-title" data-page={props.page.wsPage}>
