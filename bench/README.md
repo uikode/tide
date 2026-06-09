@@ -71,9 +71,49 @@ Endpoints:
 Smoke test (server must be running): `bun run smoke.ts`.
 Verified 2026-06-09: health 200; dashboard 200 gzip + valid JSON; conditional GET → 304; WS broadcast round-trip ≈ 4 ms.
 
-## Tier 2 — Steps 3-6 (next)
+## Tier 2 — Steps 3-7 (harnesses, driver, analysis)  ✅ BUILT
 
-3. `shared/` markup + 3 data-layer harnesses (`harness-tide` / `harness-tanstack` / `harness-swr`) + WS adapters
-4. Playwright `driver/` + `data-painted` instrumentation + auth `storageState`
-5. Pilot run (N=5) + fixture-vs-live cross-check
-6. Full collection (N=30, interleaved)
+### 3. Harnesses (`harnesses/`)
+
+Three SolidJS apps sharing identical markup, CSS, router, skeletons and the
+`data-painted` instrumentation — **only the data layer differs** (`harness equivalence`).
+Built as one Vite multi-page app (identical solid/router versions = stronger equivalence).
+
+```powershell
+cd harnesses
+bun install
+bun run build      # tide.html / tanstack.html / swr.html
+bun run preview    # serves on :20150  (data fetched from the fixture server :20140)
+```
+
+> `vite.config.ts` aliases `@uikode/tide` → its built `dist` and sets
+> `resolve.dedupe` for solid-js (a 2nd Solid copy causes a render loop — see plan §16).
+> Requires Tide to be built first: `cd ../.. && bun run build`.
+
+### 4-6. Driver (`driver/`)
+
+```powershell
+cd driver
+bun install
+bunx playwright install chromium
+node verify.mjs                        # pilot: 12 cells render real data + Update->DOM
+node collect.mjs --n=30 --warmup=3     # full run -> results.csv + results-meta.json
+node collect.mjs --throttle=4          # 4x CPU "mid-tier device" profile
+node collect.mjs --seed=12345          # reproduce a previous run order
+```
+
+Scenarios per (harness × page): **cold**, **revisit**, **update**, **steady**.
+Run order is interleaved and randomized per trial with a recorded seed. Warmups labelled
+`warmup` in the CSV and discarded by analysis.
+
+### 7. Analysis (`analysis/`)
+
+```powershell
+cd analysis
+node analyze.mjs                       # reads ../driver/results.csv
+# -> summary.md, stats.json, figures/*.svg
+```
+
+Distribution stats (median/p95/p99/IQR), Mann-Whitney U (tie-corrected) + Cliff's δ +
+Holm-Bonferroni (α=0.05), and colorblind-safe SVG box plots. Self-contained (no Python).
+
