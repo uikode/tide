@@ -1,20 +1,10 @@
-import { Show, For, createEffect, type Accessor } from "solid-js";
-import { markDataPainted } from "./mark";
+import { Show, For, type Accessor } from "solid-js";
 import { SkeletonCards, SkeletonRows } from "./skeletons";
 import type { DashboardPayload, GatewaysPayload, DaemonPayload, StackPayload } from "./types";
-
-// data-painted instrumentation point — IDENTICAL for every page & every harness.
-// Fires on each commit where data is truthy, in the next animation frame.
-function usePaint<T>(data: Accessor<T | null | undefined>) {
-  createEffect(() => {
-    if (data()) markDataPainted();
-  });
-}
 
 type ViewProps<T> = { data: Accessor<T | null | undefined> };
 
 export function DashboardView(props: ViewProps<DashboardPayload>) {
-  usePaint(props.data);
   return (
     <Show when={props.data()} fallback={<SkeletonCards n={8} />}>
       {(d) => {
@@ -45,7 +35,6 @@ export function DashboardView(props: ViewProps<DashboardPayload>) {
 }
 
 export function GatewaysView(props: ViewProps<GatewaysPayload>) {
-  usePaint(props.data);
   return (
     <Show when={props.data()} fallback={<SkeletonRows n={11} />}>
       {(d) => (
@@ -67,7 +56,6 @@ export function GatewaysView(props: ViewProps<GatewaysPayload>) {
 }
 
 export function DaemonView(props: ViewProps<DaemonPayload>) {
-  usePaint(props.data);
   return (
     <Show when={props.data()} fallback={<SkeletonRows n={11} />}>
       {(d) => (
@@ -97,7 +85,6 @@ export function DaemonView(props: ViewProps<DaemonPayload>) {
 }
 
 export function StackView(props: ViewProps<StackPayload>) {
-  usePaint(props.data);
   return (
     <Show when={props.data()} fallback={<SkeletonRows n={4} />}>
       {(d) => (
@@ -124,3 +111,4 @@ export const VIEWS = {
   daemon: DaemonView,
   stack: StackView,
 } as const;
+

@@ -9,6 +9,7 @@
 // (none beyond @tanstack/solid-query) + the persist wiring in entry-tanstack.tsx.
 import type { QueryClient } from "@tanstack/solid-query";
 import { WS_URL } from "../shared/config";
+import { markWsRecv } from "../shared/mark";
 
 export function startTanstackWsAdapter(qc: QueryClient): WebSocket {
   const ws = new WebSocket(WS_URL);
@@ -20,6 +21,7 @@ export function startTanstackWsAdapter(qc: QueryClient): WebSocket {
       return;
     }
     if (msg?.type === "update" && msg.page) {
+      markWsRecv(); // first point this adapter sees the update (before cache write)
       qc.setQueryData([msg.page], msg.data);
     }
   };

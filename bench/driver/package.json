@@ -1,0 +1,13 @@
+{
+  "name": "tide-bench-driver",
+  "private": true,
+  "type": "module",
+  "description": "Playwright (Chromium) collection driver: navigates each harness, reads data-painted / ws-recv marks + FCP + heap, writes one row per trial to results.csv.",
+  "scripts": {
+    "verify": "node verify.mjs",
+    "collect": "node collect.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.49.1"
+  }
+}

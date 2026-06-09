@@ -3,8 +3,11 @@
 // data-painted : marked inside the first/each effect after data is truthy, AFTER
 //                requestAnimationFrame (i.e. the frame the real data is committed
 //                to the DOM). This single semantic point dominates fairness.
-// ws-recv      : marked by the shared timing-probe socket the instant a WS frame
-//                arrives. Used as t0 for Update->DOM. Identical across libs.
+// ws-recv      : marked at the instant each library's OWN socket path first sees
+//                the update (Tide's ws extractor; the competitor adapters'
+//                onmessage). It is causally guaranteed BEFORE that library's DOM
+//                commit, so Update->DOM = data-painted - ws-recv is always > 0 and
+//                measures pure client-layer propagation per library.
 //
 // The driver reads these via performance.getEntriesByName(...). For full-page
 // loads, mark.startTime is relative to navigationStart (timeOrigin) => TTDP.
