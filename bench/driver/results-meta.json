@@ -1,0 +1,32 @@
+{
+  "seed": 700782595,
+  "n": 30,
+  "warmup": 3,
+  "cpuThrottle": 1,
+  "steadyIdleMs": 3000,
+  "startedAt": "2026-06-09T00:25:25.959Z",
+  "harnesses": [
+    "tide",
+    "tanstack",
+    "swr"
+  ],
+  "pages": [
+    "dashboard",
+    "gateways",
+    "daemon",
+    "stack"
+  ],
+  "preview": "http://localhost:20150",
+  "fixture": "http://127.0.0.1:20140",
+  "harnessVersions": {
+    "solid-js": "1.9.13",
+    "@solidjs/router": "0.15.3",
+    "@tanstack/solid-query": "5.101.0",
+    "@tanstack/solid-query-persist-client": "5.101.0",
+    "@tanstack/query-sync-storage-persister": "5.101.0",
+    "solid-swr": "5.0.2"
+  },
+  "tideGitRev": "9fd7490e4dc91e5ff3320d898d5a14404a3a1c33",
+  "finishedAt": "2026-06-09T00:47:54.834Z",
+  "runorderTotal": 396
+}
