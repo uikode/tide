@@ -1,12 +1,16 @@
 import type { Accessor } from "solid-js"
 
-export interface TideOptions<T> {
-  /** Unique cache key */
-  key: string
-  /** Data fetcher — receives AbortSignal for cancellation */
-  fetcher: (opts?: { signal?: AbortSignal }) => Promise<T>
+/** Reactive or static value */
+export type MaybeReactive<T> = T | (() => T)
+
+/** Common options shared by both fetcher and url variants */
+interface TideBaseOptions<T> {
+  /** Unique cache key — static string or reactive getter */
+  key: MaybeReactive<string>
   /** Extract data from WebSocket message (return null to skip) */
   ws?: (data: any) => T | null
+  /** Dot-notation path to auto-extract from WS message (alternative to ws function) */
+  wsPath?: string
   /** Ms before data considered stale (default: 30000) */
   staleTime?: number
   /** Ms before cache evicted entirely (default: 300000) */
@@ -23,9 +27,40 @@ export interface TideOptions<T> {
   pauseOnHidden?: boolean
   /** Prevent duplicate inflight requests (default: true) */
   dedupe?: boolean
-  /** Persist to sessionStorage (default: true) */
+  /** Persist to sessionStorage (default: true). Set false for memory-only. */
   persist?: boolean
+  /** Skip reactive update if response identical to current (default: false) */
+  hashCompare?: boolean
+  /** Reactive condition — when false, no fetch/poll/WS (default: true) */
+  enabled?: () => boolean
+  /** Called after successful fetch */
+  onSuccess?: (data: T) => void
+  /** Called after fetch failure */
+  onError?: (error: Error) => void
 }
+
+/** Variant A — custom fetcher (no url/transform/etag) */
+export interface TideFetcherOptions<T> extends TideBaseOptions<T> {
+  /** Data fetcher — receives AbortSignal for cancellation */
+  fetcher: (opts?: { signal?: AbortSignal }) => Promise<T>
+  url?: never
+  transform?: never
+  etag?: never
+}
+
+/** Variant B — url shorthand (no manual fetcher) */
+export interface TideUrlOptions<T> extends TideBaseOptions<T> {
+  /** URL to fetch — built-in handler with credentials, AuthError, ETag */
+  url: MaybeReactive<string>
+  /** Transform response body before storing */
+  transform?: (body: any) => T
+  /** Enable ETag-based conditional fetch (default: false) */
+  etag?: boolean
+  fetcher?: never
+}
+
+/** Union of both option variants */
+export type TideOptions<T> = TideFetcherOptions<T> | TideUrlOptions<T>
 
 export interface TideResult<T> {
   /** Current data — cached or fresh */
@@ -57,5 +92,9 @@ export interface TideProviderProps {
   /** WebSocket configuration */
   ws?: TideWSConfig
   /** Default options for all createTide instances */
-  defaults?: Partial<Pick<TideOptions<any>, "staleTime" | "cacheTime" | "pollInterval" | "retries" | "refetchOnFocus" | "pauseOnHidden" | "dedupe" | "persist">>
+  defaults?: Partial<Pick<TideBaseOptions<any>, "staleTime" | "cacheTime" | "pollInterval" | "retries" | "refetchOnFocus" | "pauseOnHidden" | "dedupe" | "persist">>
+  /** WS reconnect backoff config. Set false to disable (fixed 3s = v1.0). */
+  reconnect?: { baseMs?: number; maxMs?: number } | false
+  /** WS heartbeat interval ms (default 25000). Set false to disable. */
+  heartbeat?: number | false
 }

@@ -22,13 +22,24 @@ export function useTideWSConnected(): Accessor<boolean> {
   return useContext(TideWSContext).connected
 }
 
-/** TideProvider — wraps app, manages shared WS connection. */
+/** TideProvider — wraps app, manages shared WS connection with backoff + heartbeat. */
 export function TideProvider(props: ParentProps<TideProviderProps>) {
   const [data, setData] = createSignal<any>(null)
   const [connected, setConnected] = createSignal(false)
 
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+
+  // Backoff config
+  const backoffEnabled = props.reconnect !== false
+  const backoffBase = (typeof props.reconnect === "object" ? props.reconnect.baseMs : undefined) ?? 1000
+  const backoffMax = (typeof props.reconnect === "object" ? props.reconnect.maxMs : undefined) ?? 30000
+  let reconnectDelay = backoffBase
+
+  // Heartbeat config
+  const heartbeatEnabled = props.heartbeat !== false
+  const heartbeatInterval = (typeof props.heartbeat === "number" ? props.heartbeat : undefined) ?? 25000
 
   function connect() {
     if (!props.ws?.url) return
@@ -40,10 +51,21 @@ export function TideProvider(props: ParentProps<TideProviderProps>) {
 
     ws.onopen = () => {
       setConnected(true)
+      // Reset backoff on successful connection
+      reconnectDelay = backoffBase
+      // Subscribe to topics
       if (props.ws?.topics?.length) {
         for (const topic of props.ws.topics) {
           ws!.send(JSON.stringify({ action: "subscribe", topic }))
         }
+      }
+      // Start heartbeat
+      if (heartbeatEnabled) {
+        heartbeatTimer = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: "ping" }))
+          }
+        }, heartbeatInterval)
       }
     }
 
@@ -58,7 +80,19 @@ export function TideProvider(props: ParentProps<TideProviderProps>) {
     ws.onclose = () => {
       setConnected(false)
       ws = null
-      reconnectTimer = setTimeout(connect, 3000)
+      // Clear heartbeat
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer)
+        heartbeatTimer = null
+      }
+      // Reconnect with backoff
+      if (backoffEnabled) {
+        reconnectTimer = setTimeout(connect, reconnectDelay)
+        reconnectDelay = Math.min(reconnectDelay * 2, backoffMax)
+      } else {
+        // v1.0 behavior: fixed 3s reconnect
+        reconnectTimer = setTimeout(connect, 3000)
+      }
     }
 
     ws.onerror = () => {
@@ -70,6 +104,10 @@ export function TideProvider(props: ParentProps<TideProviderProps>) {
     if (reconnectTimer) {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
+    }
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer)
+      heartbeatTimer = null
     }
     if (ws) {
       ws.onclose = null
