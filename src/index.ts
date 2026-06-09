@@ -6,4 +6,10 @@ export { TideProvider, useTideWS, useTideWSConnected } from "./ws"
 export { prefetch, registerPrefetch, unregisterPrefetch } from "./prefetch"
 export { readCache, writeCache, invalidateCache, cacheAge } from "./cache"
 export { AuthError, deduped, fetchWithRetry } from "./retry"
-export type { TideOptions, TideResult, TideWSConfig, TideProviderProps } from "./types"
+export { createUrlFetcher, NOT_MODIFIED } from "./fetcher"
+export { contentHash, djb2 } from "./hash"
+export { readETag, writeETag, clearETag } from "./etag"
+export type {
+  TideOptions, TideFetcherOptions, TideUrlOptions,
+  TideResult, TideWSConfig, TideProviderProps, MaybeReactive
+} from "./types"

@@ -16,7 +16,10 @@ Built for **real-time dashboards** where data arrives via WebSocket. Most data-f
 | Instant revisit (0ms) | ❌ | ❌ | ✅ sessionStorage |
 | Skeleton system | ❌ | ❌ | ✅ Included |
 | Prefetch on hover | ❌ Manual | ❌ | ✅ Built-in |
-| Bundle size | 13KB | ~2KB | **2.8KB** |
+| ETag / 304 | ❌ Manual | ❌ | ✅ Built-in |
+| Content dedup | ❌ | ❌ | ✅ hashCompare |
+| WS backoff + heartbeat | ❌ | ❌ | ✅ Built-in |
+| Bundle size | 13KB | ~2KB | **~3KB** |
 | Dependencies | 1 | 0 | **0** |
 | SolidJS native | Adapter | ✅ | ✅ |
 
@@ -26,207 +29,272 @@ Built for **real-time dashboards** where data arrives via WebSocket. Most data-f
 npm install @uikode/tide
 ```
 
+Peer dependency: `solid-js ^1.9.0`
+
 ## Quick Start
 
 ```tsx
 import { TideProvider, createTide } from "@uikode/tide"
 
-// 1. Wrap your app with TideProvider
+// 1. Wrap your app
 function App() {
   return (
-    <TideProvider ws={{ url: "ws://localhost:3000/ws" }}>
+    <TideProvider ws={{ url: "wss://your-server/ws" }}>
       <Dashboard />
     </TideProvider>
   )
 }
 
-// 2. Use createTide in any component
+// 2. Fetch data — URL shorthand (new in v1.1)
 function Dashboard() {
-  const { data, loading, refresh } = createTide<Stats>({
+  const stats = createTide<Stats>({
     key: "dashboard",
-    fetcher: () => fetch("/api/dashboard").then(r => r.json()),
-    ws: (msg) => msg?.dashboard ?? null,
+    url: "/api/dashboard",
+    wsPath: "data.dashboard",  // auto-extract from WS
   })
 
   return (
-    <Show when={!loading()} fallback={<DashboardSkeleton />}>
-      <StatsPanel data={data()!} />
+    <Show when={!stats.loading()} fallback={<Skeleton />}>
+      <StatsGrid data={stats.data()!} />
     </Show>
   )
 }
 ```
 
-That's it. WebSocket push, sessionStorage cache, retry, dedup — all handled automatically.
+## Features
 
-## How It Works — 5-Layer Data Flow
+### Core (v1.0)
 
+- **5-layer data flow** — sessionStorage → WebSocket → HTTP SWR → retry → optimistic
+- **0ms revisit** — renders instantly from sessionStorage, refreshes in background
+- **WebSocket push** — real-time updates merged automatically
+- **Prefetch on hover** — warm cache before navigation
+- **Optimistic mutations** — instant UI, reverts if server disagrees
+- **Visibility pause** — stops polling when tab hidden
+- **Refetch on focus/reconnect** — catches up after tab-away or network loss
+- **Request deduplication** — same key = one inflight request
+- **Abort on re-fetch** — no race conditions
+- **Exponential retry** — 1s, 2s, 4s with configurable count
+- **AuthError detection** — 401/403 stops polling, lets app handle redirect
+- **Skeleton components** — shimmer placeholders matching real layouts
+
+### New in v1.1
+
+- **`url` shorthand** — no fetcher boilerplate, built-in credentials + abort
+- **`transform`** — reshape response before caching
+- **`wsPath`** — dot-notation extraction (`"data.stack"` instead of `msg => msg?.data?.stack ?? null`)
+- **`hashCompare`** — skip reactive updates when content unchanged (djb2 hash)
+- **ETag / 304** — conditional fetch, zero-cost cache validation
+- **Reactive key/url** — pass `() => string` for dynamic routes
+- **`enabled` flag** — reactive pause/resume
+- **WS exponential backoff** — 1s → 30s reconnect with jitter
+- **WS heartbeat** — 25s ping keeps connections alive
+
+## Usage Patterns
+
+### URL shorthand (v1.1)
+
+```tsx
+// Before (v1.0)
+const data = createTide({
+  key: "gateways",
+  fetcher: ({ signal }) =>
+    fetch("/api/gateways", { signal, credentials: "include" })
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() }),
+  ws: (msg) => msg?.data?.hermes?.gateways ?? null,
+})
+
+// After (v1.1)
+const data = createTide({
+  key: "gateways",
+  url: "/api/gateways",
+  wsPath: "data.hermes.gateways",
+})
 ```
-Layer 1: sessionStorage     → 0ms render on page revisit
-Layer 2: WebSocket push     → 12ms real-time updates
-Layer 3: HTTP SWR fetch     → fallback when WS disconnected
-Layer 4: Retry + Abort      → resilient to network failures
-Layer 5: Optimistic UI      → actions feel instant
+
+### ETag / conditional fetch
+
+```tsx
+const data = createTide({
+  key: "tooling",
+  url: "/api/agentic/tooling",
+  etag: true,  // sends If-None-Match, skips update on 304
+})
 ```
 
-1. **Page loads** → check sessionStorage. If cached, render immediately (0ms). Mark as stale.
-2. **WebSocket connected** → push updates override stale data in real-time.
-3. **WS disconnected** → auto-fallback to HTTP polling with stale-while-revalidate.
-4. **Network errors** → exponential backoff retry (1s, 2s, 4s). Abort on re-fetch (no races).
-5. **User actions** → `mutate()` for instant optimistic feedback, reconcile on next server response.
+### Content deduplication
 
-## API Reference
+```tsx
+const data = createTide({
+  key: "stack",
+  url: "/api/stack/status",
+  hashCompare: true,  // no re-render if data identical
+})
+```
 
-### `createTide<T>(options): TideResult<T>`
+### Reactive key (dynamic routes)
 
-The core hook. One call per data stream.
+```tsx
+const [query, setQuery] = createSignal("react")
 
-**Options:**
+const results = createTide({
+  key: () => `search-${query()}`,
+  url: () => `/api/search?q=${query()}`,
+})
+```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `key` | `string` | — | Unique cache key (required) |
-| `fetcher` | `(opts?) => Promise<T>` | — | Data fetcher function (required) |
-| `ws` | `(msg: any) => T \| null` | — | Extract data from WS message (return null to skip) |
-| `staleTime` | `number` | `30000` | Ms before data considered stale |
-| `cacheTime` | `number` | `300000` | Ms before cache evicted |
-| `pollInterval` | `number` | `10000` | Ms between HTTP polls (when WS disconnected) |
-| `retries` | `number` | `3` | Fetch retry count on failure |
-| `refetchOnFocus` | `boolean` | `true` | Refetch after 30s+ tab away |
-| `refetchOnReconnect` | `boolean` | `true` | Refetch when network restored |
-| `pauseOnHidden` | `boolean` | `true` | Pause polling when tab hidden |
-| `dedupe` | `boolean` | `true` | Prevent duplicate inflight requests |
-| `persist` | `boolean` | `true` | Persist to sessionStorage |
+### Conditional fetch
 
-**Returns:**
+```tsx
+const [loggedIn, setLoggedIn] = createSignal(false)
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `data` | `Accessor<T \| null>` | Current data (cached or fresh) |
-| `loading` | `Accessor<boolean>` | True only on first load with no cache |
-| `refreshing` | `Accessor<boolean>` | True during background SWR refresh |
-| `stale` | `Accessor<boolean>` | Data is from cache, refresh pending |
-| `error` | `Accessor<string \| null>` | Last error message |
-| `refresh` | `() => Promise<void>` | Force immediate refresh |
-| `mutate` | `(fn: (prev) => T) => void` | Optimistic update |
-| `prefetch` | `() => void` | Warm cache (for hover prefetch) |
+const data = createTide({
+  key: "private",
+  url: "/api/private",
+  enabled: () => loggedIn(),
+})
+```
 
-### `TideProvider`
-
-Shared context for WebSocket connection and defaults.
+### WS backoff + heartbeat config
 
 ```tsx
 <TideProvider
-  ws={{ url: "ws://localhost:3000/ws", topics: ["dashboard", "alerts"] }}
-  defaults={{ staleTime: 15_000, pollInterval: 30_000 }}
+  ws={{ url: "wss://server/ws" }}
+  reconnect={{ baseMs: 1000, maxMs: 30000 }}
+  heartbeat={25000}
 >
   <App />
 </TideProvider>
 ```
 
-### `useTideWS()`
+## API Reference
 
-Access the raw WebSocket data signal from any component inside TideProvider.
+### `createTide<T>(options)`
 
-```tsx
-const wsData = useTideWS()
-createEffect(() => {
-  const msg = wsData()
-  if (msg?.type === "notification") showToast(msg.text)
+```ts
+// Variant A: custom fetcher
+createTide<T>({
+  key: string | (() => string),
+  fetcher: (opts?: { signal?: AbortSignal }) => Promise<T>,
+  ws?: (data: any) => T | null,
+  wsPath?: string,
+  staleTime?: number,       // default: 30000
+  cacheTime?: number,       // default: 300000
+  pollInterval?: number,    // default: 10000
+  retries?: number,         // default: 3
+  persist?: boolean,        // default: true
+  hashCompare?: boolean,    // default: false
+  enabled?: () => boolean,  // default: () => true
+  refetchOnFocus?: boolean,
+  refetchOnReconnect?: boolean,
+  pauseOnHidden?: boolean,
+  dedupe?: boolean,
+  onSuccess?: (data: T) => void,
+  onError?: (error: Error) => void,
+})
+
+// Variant B: url shorthand
+createTide<T>({
+  key: string | (() => string),
+  url: string | (() => string),
+  transform?: (body: any) => T,
+  etag?: boolean,           // default: false
+  // ...same base options as above
 })
 ```
 
-### `useTideWSConnected()`
+### `TideResult<T>`
 
-Reactive boolean — is WebSocket currently connected?
+```ts
+{
+  data: Accessor<T | null>
+  loading: Accessor<boolean>      // first load, no cache
+  refreshing: Accessor<boolean>   // background SWR
+  stale: Accessor<boolean>
+  error: Accessor<string | null>
+  refresh: () => Promise<void>
+  mutate: (fn: (prev: T | null) => T) => void
+  prefetch: () => void
+}
+```
+
+### `TideProvider`
 
 ```tsx
-const connected = useTideWSConnected()
-<Show when={!connected()}>
-  <Banner>Reconnecting...</Banner>
-</Show>
+<TideProvider
+  ws={{ url: string, topics?: string[] }}
+  defaults={{ staleTime, cacheTime, pollInterval, retries, persist }}
+  reconnect={{ baseMs?: number, maxMs?: number } | false}
+  heartbeat={number | false}
+>
+  {children}
+</TideProvider>
+```
+
+### Hooks
+
+```ts
+useTideWS()           // Accessor<any> — last WS message
+useTideWSConnected()  // Accessor<boolean>
+```
+
+### Utilities
+
+```ts
+prefetch(key, fetcher)     // warm cache
+readCache<T>(key)          // read sessionStorage
+writeCache(key, data)      // write sessionStorage
+invalidateCache(key)       // clear key
+cacheAge(key)              // ms since cached
+
+// v1.1
+createUrlFetcher(url, opts)  // built-in fetch with ETag/abort
+NOT_MODIFIED                 // sentinel for 304
+contentHash(data)            // djb2 hash of JSON
+readETag(key)                // read stored ETag
+writeETag(key, etag)         // store ETag
+clearETag(key)               // clear ETag
 ```
 
 ## Skeleton Components
 
-Built-in skeleton shimmer components for common layouts:
-
 ```tsx
-import { SkeletonCard, SkeletonTable, SkeletonGrid } from "@uikode/tide/skeleton"
+import { Skeleton, SkeletonCard, SkeletonGrid, SkeletonTable } from "@uikode/tide/skeleton"
 
-// Use as loading fallback
-<Show when={data()} fallback={<SkeletonCard lines={4} />}>
-  <Card data={data()!} />
-</Show>
+// Base shimmer
+<Skeleton class="h-4 w-32" />
+
+// Pre-built layouts
+<SkeletonCard lines={3} />
+<SkeletonGrid cols={3} rows={2} />
+<SkeletonTable rows={5} cols={4} />
+
+// Page-specific (match real content structure)
+<SkeletonDashboard />
+<SkeletonStack />
+<SkeletonScheduler />
+<SkeletonGateways />
+<SkeletonToolProfiles />
 ```
 
-Available: `Skeleton`, `SkeletonCard`, `SkeletonTable`, `SkeletonGrid`, `SkeletonDashboard`, `SkeletonStack`, `SkeletonScheduler`
+## Bundle Size
 
-## Prefetch on Hover
+| Export | Size (gzip) |
+|--------|------------|
+| Core (`createTide` + utils) | ~2.2KB |
+| Skeleton components | ~0.8KB |
+| **Total** | **~3KB** |
 
-Warm the cache before navigation — zero perceived latency:
+Zero runtime dependencies. SolidJS is a peer.
 
-```tsx
-import { prefetch } from "@uikode/tide"
+## Philosophy
 
-<a
-  href="/settings"
-  onMouseEnter={() => prefetch("settings", () => fetch("/api/settings").then(r => r.json()))}
->
-  Settings
-</a>
-```
-
-## Auth Error Handling
-
-Tide detects 401/403 responses and throws `AuthError` — handle globally:
-
-```tsx
-import { AuthError } from "@uikode/tide"
-
-// In your error boundary or auth logic
-try {
-  await refresh()
-} catch (e) {
-  if (e instanceof AuthError) redirectToLogin()
-}
-```
-
-## Server-Side Pattern (Recommended)
-
-For best performance, pair Tide with server-side caching + ETag:
-
-```go
-// Go/Fiber example
-func handleDashboard(c *fiber.Ctx) error {
-    fp := computeFingerprint()  // sha256 of data sources
-    if c.Get("If-None-Match") == fp {
-        return c.SendStatus(304) // unchanged — 0 bytes transferred
-    }
-    c.Set("ETag", fp)
-    return c.JSON(data)
-}
-```
-
-Result: 2ms API responses + 0ms revisits + real-time WS push = instant UI.
-
-## Benchmarks
-
-Real production data from a dashboard with 11 pages and 12 WebSocket streams:
-
-| Metric | Value |
-|--------|-------|
-| Revisit render | **0ms** (sessionStorage) |
-| Cold first paint | **~50ms** (with server cache) |
-| WS → DOM update | **~12ms** |
-| Bundle size | **2.8KB** gzip |
-| Cache hit rate | **94%** on revisit |
-| Dependencies | **0** (solid-js peer) |
-
-## Requirements
-
-- SolidJS `^1.9.0`
-- Browser with `sessionStorage` and `WebSocket`
+1. **WebSocket-first** — HTTP is the fallback, not the default
+2. **Zero-config persistence** — sessionStorage by default, 0ms revisits
+3. **Framework-native** — built on SolidJS signals, not a port from React
+4. **Real dashboards** — designed for 11-page production dashboard at [ACS](https://uikode.com)
+5. **Honest benchmarks** — measured with Playwright, not synthetic
 
 ## License
 
-MIT © [Andy Vandaric](https://github.com/andyvandaric) / [UIKode](https://uikode.com)
+MIT © [Andy Vandaric](https://uikode.com)
