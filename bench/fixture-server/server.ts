@@ -21,39 +21,31 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, "..", "fixtures");
 const PORT = Number(process.env.BENCH_PORT ?? 20140);
 
-// route path -> fixture filename
-const ROUTES: Record<string, string> = {
-  "/api/dashboard": "dashboard.json",
-  "/api/gateways": "gateways.json",
-  "/api/daemon/status": "daemon-status.json",
-  "/api/stack/status": "stack-status.json",
+// route path -> { fixture filename, short page id }
+const ROUTES: Record<string, { file: string; id: string }> = {
+  "/api/dashboard": { file: "dashboard.json", id: "dashboard" },
+  "/api/gateways": { file: "gateways.json", id: "gateways" },
+  "/api/daemon/status": { file: "daemon-status.json", id: "daemon" },
+  "/api/stack/status": { file: "stack-status.json", id: "stack" },
+  "/api/agentic/tooling-status": { file: "agentic-tooling-status.json", id: "tooling" },
+  "/api/agentic/summary": { file: "agentic-summary.json", id: "summary" },
+  "/api/announcements": { file: "announcements.json", id: "announcements" },
 };
+const routeById = (id: string) => Object.keys(ROUTES).find((r) => ROUTES[r].id === id) ?? "/api/dashboard";
 
 interface Frozen {
-  page: string; // short id (dashboard, gateways, daemon, stack)
+  page: string; // short id (dashboard, gateways, daemon, stack, tooling, summary, announcements)
   raw: Buffer; // byte-identical payload
   gz: Buffer; // pre-gzipped (level 9)
   etag: string; // strong validator over raw bytes
 }
 
-function pageId(path: string): string {
-  if (path.includes("daemon")) return "daemon";
-  if (path.includes("stack")) return "stack";
-  if (path.includes("gateways")) return "gateways";
-  return "dashboard";
-}
-
 // Load + freeze every fixture once at startup (in-memory => ~0 latency).
 const frozen: Record<string, Frozen> = {};
-for (const [route, file] of Object.entries(ROUTES)) {
+for (const [route, { file, id }] of Object.entries(ROUTES)) {
   const raw = readFileSync(join(FIXTURES_DIR, file));
   const etag = '"' + createHash("sha1").update(raw).digest("hex") + '"';
-  frozen[route] = {
-    page: pageId(route),
-    raw,
-    gz: gzipSync(raw, { level: 9 }),
-    etag,
-  };
+  frozen[route] = { page: id, raw, gz: gzipSync(raw, { level: 9 }), etag };
 }
 
 const COMMON_HEADERS = {
@@ -87,7 +79,7 @@ const server = Bun.serve({
     if (path === "/__broadcast" && req.method === "POST") {
       const page = url.searchParams.get("page") ?? "dashboard";
       rev += 1;
-      const route = Object.keys(ROUTES).find((r) => pageId(r) === page) ?? "/api/dashboard";
+      const route = routeById(page);
       const data = JSON.parse(frozen[route].raw.toString("utf8"));
       data._bench = rev; // deterministic real change so every lib commits an update
       const frame = JSON.stringify({ type: "update", page, rev, data });
@@ -145,7 +137,7 @@ const server = Bun.serve({
       if (typeof msg === "string" && msg.startsWith("broadcast:")) {
         const page = msg.slice("broadcast:".length) || "dashboard";
         rev += 1;
-        const route = Object.keys(ROUTES).find((r) => pageId(r) === page) ?? "/api/dashboard";
+        const route = routeById(page);
         const data = JSON.parse(frozen[route].raw.toString("utf8"));
         data._bench = rev;
         const frame = JSON.stringify({ type: "update", page, rev, data });
@@ -156,7 +148,7 @@ const server = Bun.serve({
 });
 
 console.log(`[fixture-server] frozen ACS payloads on http://127.0.0.1:${server.port}`);
-for (const [route, file] of Object.entries(ROUTES)) {
+for (const [route, { file }] of Object.entries(ROUTES)) {
   console.log(`  ${route}  <-  ${file}  (${frozen[route].raw.byteLength} B, etag ${frozen[route].etag})`);
 }
 console.log(`  /ws            WebSocket (Update->DOM)`);
