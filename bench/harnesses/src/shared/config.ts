@@ -22,6 +22,9 @@ export const PAGES: PageDef[] = [
   { path: "/gateways", key: "gateways", endpoint: "/api/gateways", wsPage: "gateways", label: "Gateways" },
   { path: "/daemon", key: "daemon", endpoint: "/api/daemon/status", wsPage: "daemon", label: "Daemon" },
   { path: "/stack", key: "stack", endpoint: "/api/stack/status", wsPage: "stack", label: "Stack" },
+  { path: "/tooling", key: "tooling", endpoint: "/api/agentic/tooling-status", wsPage: "tooling", label: "Tooling" },
+  { path: "/summary", key: "summary", endpoint: "/api/agentic/summary", wsPage: "summary", label: "Summary" },
+  { path: "/announcements", key: "announcements", endpoint: "/api/announcements", wsPage: "announcements", label: "Announcements" },
 ];
 
 /** Freshness window shared by all libs (matches WS broadcast cadence, plan §9.2). */

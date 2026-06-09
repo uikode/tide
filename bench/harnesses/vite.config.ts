@@ -23,6 +23,7 @@ export default defineConfig({
     target: "es2022",
     rollupOptions: {
       input: {
+        vanilla: resolve(__dirname, "vanilla.html"),
         tide: resolve(__dirname, "tide.html"),
         tanstack: resolve(__dirname, "tanstack.html"),
         swr: resolve(__dirname, "swr.html"),

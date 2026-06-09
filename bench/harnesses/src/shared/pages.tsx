@@ -110,5 +110,34 @@ export const VIEWS = {
   gateways: GatewaysView,
   daemon: DaemonView,
   stack: StackView,
+  tooling: GenericView,
+  summary: GenericView,
+  announcements: GenericView,
 } as const;
+
+// Generic equivalent view for endpoints without a bespoke layout. Renders a card
+// per top-level field (count for arrays/objects, value for scalars). Identical
+// across all harness arms, so DOM stays equivalent (§4.4).
+export function GenericView(props: ViewProps<any>) {
+  const root = () => {
+    const d: any = props.data();
+    if (!d) return null;
+    // unwrap common ACS envelope { data: ... } / { items: ... }
+    return d.data ?? d.items ?? d;
+  };
+  return (
+    <Show when={props.data()} fallback={<SkeletonCards n={6} />}>
+      <div class="grid">
+        <For each={Object.entries(root() ?? {}).filter(([k]) => k !== "_bench")}>
+          {([k, v]) => (
+            <div class="card">
+              <div class="k">{k}</div>
+              <div class="v">{Array.isArray(v) ? v.length : typeof v === "object" && v ? Object.keys(v).length : String(v)}</div>
+            </div>
+          )}
+        </For>
+      </div>
+    </Show>
+  );
+}
 

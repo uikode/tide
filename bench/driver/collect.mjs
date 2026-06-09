@@ -20,7 +20,7 @@
 //   node collect.mjs --seed=12345   # reproduce a previous run order
 
 import { chromium } from "playwright";
-import { writeFileSync, appendFileSync } from "node:fs";
+import { writeFileSync, appendFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 const PREVIEW = "http://localhost:20150";
@@ -34,16 +34,22 @@ const args = Object.fromEntries(
 );
 const N = Number(args.n ?? 30);
 const WARMUP = Number(args.warmup ?? 3);
-const THROTTLE = Number(args.throttle ?? 1); // 1 = none
+const THROTTLE = Number(args.throttle ?? 1); // CPU rate, 1 = none
+const RTT = Number(args.rtt ?? 0); // ms added latency (P3); 0 = none
+const BW = Number(args.bw ?? 0); // Mbps down/up cap (P3); 0 = unlimited
+const PROFILE = args.profile ?? (RTT > 0 ? "networked" : THROTTLE > 1 ? "mid-device" : "local-fast");
 const SEED = Number(args.seed ?? (Date.now() % 2147483647));
 const STEADY_IDLE_MS = Number(args.idle ?? 5000);
 
-const HARNESSES = ["tide", "tanstack", "swr"];
+const HARNESSES = ["vanilla", "tide", "tanstack", "swr"];
 const PAGES = [
   { route: "dashboard", marker: ".card" },
   { route: "gateways", marker: ".row" },
   { route: "daemon", marker: ".row" },
   { route: "stack", marker: ".row" },
+  { route: "tooling", marker: ".card" },
+  { route: "summary", marker: ".card" },
+  { route: "announcements", marker: ".card" },
 ];
 
 // seeded RNG (mulberry32) for reproducible run-order randomization
@@ -91,21 +97,35 @@ const RESET = () => {
 };
 
 const CSV = "results.csv";
-const COLS = "harness,page,scenario,trial,metric,value,runorder,seed,throttle,ts";
-writeFileSync(CSV, COLS + "\n");
+const COLS = "harness,page,scenario,trial,metric,value,runorder,seed,profile,cpuThrottle,rttMs,ts";
+const APPEND = !!args.append && existsSync(CSV);
+if (!APPEND) writeFileSync(CSV, COLS + "\n");
 let runorder = 0;
 function row(h, p, scenario, trial, metric, value) {
   if (value == null || Number.isNaN(value)) return;
-  appendFileSync(CSV, `${h},${p},${scenario},${trial},${metric},${value},${runorder},${SEED},${THROTTLE},${Date.now()}\n`);
+  appendFileSync(
+    CSV,
+    `${h},${p},${scenario},${trial},${metric},${value},${runorder},${SEED},${PROFILE},${THROTTLE},${RTT},${Date.now()}\n`,
+  );
 }
 
 async function newPage(browser) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   await page.addInitScript(initScript);
-  if (THROTTLE > 1) {
+  if (THROTTLE > 1 || RTT > 0 || BW > 0) {
     const cdp = await ctx.newCDPSession(page);
-    await cdp.send("Emulation.setCPUThrottlingRate", { rate: THROTTLE });
+    if (THROTTLE > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: THROTTLE });
+    if (RTT > 0 || BW > 0) {
+      const bps = BW > 0 ? (BW * 1024 * 1024) / 8 : -1;
+      await cdp.send("Network.enable");
+      await cdp.send("Network.emulateNetworkConditions", {
+        offline: false,
+        latency: RTT,
+        downloadThroughput: bps,
+        uploadThroughput: bps,
+      });
+    }
   }
   return { ctx, page };
 }
@@ -176,7 +196,10 @@ async function main() {
     seed: SEED,
     n: N,
     warmup: WARMUP,
+    profile: PROFILE,
     cpuThrottle: THROTTLE,
+    rttMs: RTT,
+    bwMbps: BW,
     steadyIdleMs: STEADY_IDLE_MS,
     startedAt: new Date().toISOString(),
     harnesses: HARNESSES,
@@ -214,8 +237,9 @@ async function main() {
   await browser.close();
   meta.finishedAt = new Date().toISOString();
   meta.runorderTotal = runorder;
-  writeFileSync("results-meta.json", JSON.stringify(meta, null, 2));
-  console.log(`\nDONE. seed=${SEED} throttle=${THROTTLE}x  -> ${CSV} + results-meta.json`);
+  writeFileSync(`results-meta-${PROFILE}.json`, JSON.stringify(meta, null, 2));
+  writeFileSync("results-meta.json", JSON.stringify(meta, null, 2)); // latest
+  console.log(`\nDONE. profile=${PROFILE} seed=${SEED} cpu=${THROTTLE}x rtt=${RTT}ms -> ${CSV} + results-meta-${PROFILE}.json`);
 }
 
 main();
