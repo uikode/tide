@@ -4,7 +4,7 @@
 
 [![npm](https://img.shields.io/npm/v/@uikode/tide)](https://npmjs.com/package/@uikode/tide)
 [![bundle](https://img.shields.io/bundlephobia/minzip/@uikode/tide)](https://bundlephobia.com/package/@uikode/tide)
-[![MIT](https://img.shields.io/github/license/uikode/tide)](LICENSE)
+[![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ## Why Tide?
 
