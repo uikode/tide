@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.1 (2026-06-13)
+
+### Fixed
+
+- **Reactive key cache corruption** — `createTide` with reactive `key` (e.g. filter tabs) now correctly tracks the active key for cache read/write, dedup, and devLog. Previously, switching keys caused data to be cached under the original key, resulting in stale or missing data when switching back.
+
+### Added
+
+- **SkeletonDashboard** — includes chart + health summary section matching real layout
+- **Docs** — "Reactive key — filter/tab switching" pattern with cache behavior explanation
+
+### CI
+
+- Add `workflow_dispatch` trigger for manual runs
+- Add npm publish workflow on GitHub release
+
 ## 1.1.0 (2026-06-10)
 
 ### New Features

@@ -1,6 +1,6 @@
 {
   "name": "@uikode/tide",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "WebSocket-first, stale-while-revalidate data framework for SolidJS. Data flows. UI follows.",
   "type": "module",
   "main": "./dist/index.js",
