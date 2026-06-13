@@ -44,7 +44,7 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
   let stopped = false // set on auth failure — prevents restart
   let lastHash = 0
 
-  const key = resolve(opts.key)
+  let currentKey = resolve(opts.key)
   const staleTime = opts.staleTime ?? 30_000
   const cacheTime = opts.cacheTime ?? 300_000
   const pollInterval = opts.pollInterval ?? 10_000
@@ -57,21 +57,21 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
     ? createUrlFetcher<T>(currentUrl, {
         transform: opts.transform,
         etag: opts.etag,
-        key,
+        key: currentKey,
       })
     : (opts as TideFetcherOptions<T>).fetcher
 
   // --- Layer 1: Cache hydration (SYNCHRONOUS — before first render) ---
   if (persist) {
-    const cached = readCache<T>(key, cacheTime)
+    const cached = readCache<T>(currentKey, cacheTime)
     if (cached !== null) {
       setData(() => cached)
       setStale(true)
       setLoading(false)
       if (opts.hashCompare) lastHash = contentHash(cached)
-      devLog(key, "CACHE HIT")
+      devLog(currentKey, "CACHE HIT")
     } else {
-      devLog(key, "CACHE MISS")
+      devLog(currentKey, "CACHE MISS")
     }
   }
 
@@ -86,20 +86,20 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
     createEffect(() => {
       const newKey = resolve(opts.key)
       const newUrl = "url" in opts && opts.url ? resolve(opts.url!) : null
-      if (newKey !== key || newUrl !== currentUrl) {
-        // Key or URL changed — re-hydrate cache for new key, rebuild fetcher, refresh
-        Object.assign(opts, {}) // trigger tracking (key is let-bound above, we update via closure)
+      if (newKey !== currentKey || newUrl !== currentUrl) {
+        // Key or URL changed — update currentKey, re-hydrate cache, rebuild fetcher, refresh
+        currentKey = newKey
         if (newUrl && newUrl !== currentUrl) {
           currentUrl = newUrl
           fetcher = createUrlFetcher<T>(currentUrl, {
             transform: (opts as TideUrlOptions<T>).transform,
             etag: (opts as TideUrlOptions<T>).etag,
-            key: newKey,
+            key: currentKey,
           })
         }
         // Hydrate cache for new key
         if (persist) {
-          const cached = readCache<T>(newKey, cacheTime)
+          const cached = readCache<T>(currentKey, cacheTime)
           if (cached !== null) {
             setData(() => cached)
             setStale(true)
@@ -141,7 +141,7 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
         wsDelivered = true
         throttledCacheWrite(extracted)
         opts.onSuccess?.(extracted)
-        devLog(key, "WS PUSH")
+        devLog(currentKey, "WS PUSH")
       }
     })
   }
@@ -157,7 +157,7 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
 
     const doFetch = () => fetchWithRetry(fetcher, retries, controller!.signal)
     const fetchFn = opts.dedupe !== false
-      ? () => deduped(key, doFetch)
+      ? () => deduped(currentKey, doFetch)
       : doFetch
 
     try {
@@ -167,7 +167,7 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
       // Handle 304 Not Modified (ETag hit)
       if ((fresh as unknown) === NOT_MODIFIED) {
         setStale(false)
-        devLog(key, "304 NOT MODIFIED")
+        devLog(currentKey, "304 NOT MODIFIED")
         return
       }
 
@@ -176,7 +176,7 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
         const newHash = contentHash(fresh)
         if (newHash === lastHash) {
           setStale(false)
-          devLog(key, "HASH MATCH — skip update")
+          devLog(currentKey, "HASH MATCH — skip update")
           return
         }
         lastHash = newHash
@@ -184,9 +184,9 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
 
       setData(() => fresh)
       setStale(false)
-      if (persist) writeCache(key, fresh)
+      if (persist) writeCache(currentKey, fresh)
       opts.onSuccess?.(fresh)
-      devLog(key, "FETCH OK", { ms: Date.now() - start })
+      devLog(currentKey, "FETCH OK", { ms: Date.now() - start })
     } catch (e: any) {
       if (e?.name !== "AbortError") {
         if (e?.name === "AuthError") {
@@ -201,7 +201,7 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
         }
         setError(e?.message ?? "fetch failed")
         opts.onError?.(e)
-        devLog(key, "FETCH ERROR", e?.message)
+        devLog(currentKey, "FETCH ERROR", e?.message)
       }
     } finally {
       setRefreshing(false)
@@ -267,7 +267,7 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
     stopPolling()
     controller?.abort()
     if (throttleTimer) clearTimeout(throttleTimer)
-    unregisterPrefetch(key)
+    unregisterPrefetch(currentKey)
   })
 
   // --- Throttled cache write (prevent spam on rapid WS pushes) ---
@@ -275,7 +275,7 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
     if (!persist) return
     if (throttleTimer) return // already scheduled
     throttleTimer = setTimeout(() => {
-      writeCache(key, value)
+      writeCache(currentKey, value)
       throttleTimer = null
     }, 500)
   }
@@ -284,11 +284,11 @@ export function createTide<T>(opts: TideOptions<T>): TideResult<T> {
   function mutate(fn: (prev: T | null) => T) {
     const next = fn(data())
     setData(() => next)
-    if (persist) writeCache(key, next)
+    if (persist) writeCache(currentKey, next)
   }
 
   // --- Prefetch registry ---
-  registerPrefetch(key, () => { refresh() })
+  registerPrefetch(currentKey, () => { refresh() })
 
   return {
     data,

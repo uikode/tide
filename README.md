@@ -143,6 +143,56 @@ const results = createTide({
 })
 ```
 
+### Reactive key — filter/tab switching
+
+When using reactive keys for tab or filter UIs, each key maintains its own cache entry. Switching tabs fetches fresh data (or hits cache if within `cacheTime`), and the loading state resets per key.
+
+```tsx
+const [period, setPeriod] = createSignal<"today" | "24h" | "7d" | "30d">("today")
+
+const chart = createTide<ChartResponse>({
+  key: () => `usage-chart-${period()}`,
+  url: () => `/api/usage/chart?period=${period()}`,
+  staleTime: 30_000,
+  cacheTime: 300_000,
+  persist: true,
+})
+
+// Each period gets its own cache entry:
+// - "usage-chart-today"  → cached separately
+// - "usage-chart-24h"    → cached separately
+// - "usage-chart-7d"     → cached separately
+
+// UI: skeleton while loading, instant on cache hit
+return (
+  <div>
+    <div class="flex gap-1">
+      <For each={["today", "24h", "7d", "30d"] as const}>
+        {(p) => (
+          <button
+            class={period() === p ? "active" : ""}
+            onClick={() => setPeriod(p)}
+          >
+            {p}
+          </button>
+        )}
+      </For>
+    </div>
+
+    <Show when={!chart.loading() && chart.data()} fallback={<ChartSkeleton />}>
+      <Chart data={chart.data()!} />
+    </Show>
+  </div>
+)
+```
+
+Key behaviors:
+- **First visit to a tab** — `loading()` is true, shows skeleton, fetches from server
+- **Revisit within `cacheTime`** — instant render from sessionStorage (0ms), background refresh if stale
+- **Revisit after `cacheTime` expired** — treated as first visit again
+- **WebSocket push** — updates whichever key matches the current reactive value
+- **`persist: true`** — survives page refresh (sessionStorage), so tabs feel instant on reload
+
 ### Conditional fetch
 
 ```tsx
